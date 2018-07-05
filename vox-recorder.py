@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-   VOX-recorder records audio when there is sound present
-   Copyright (C) 2015  Kari Karvonen <oh1kk at toimii.fi>
+   Voice activated audio recorder intended for scanner radio use
+   Copyright (C) 2018  Kari Karvonen <oh1kk at toimii.fi>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
