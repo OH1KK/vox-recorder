@@ -29,24 +29,18 @@ import wave
 import os
 
 import configparser
+import vox_common
 
 
-config = configparser.ConfigParser()
-config['DEFAULT'] = {
-    'SilenceThreshold': 5000,
-    'RecordSilenceCutoff': 5,
-    'SaveLocation': os.path.expanduser("~/vox-records"),
-    'SampleRate': 44100,
-    'Compress': 'yes',
-}
+config = vox_common.init_config()
 
 SILENCE_THRESHOLD = config['DEFAULT']['SilenceThreshold']
 RECORD_AFTER_SILENCE_SECS = config['DEFAULT']['RecordSilenceCutoff']
 WAVEFILES_STORAGEPATH = config['DEFAULT']['SaveLocation']
 
 RATE = config['DEFAULT']['SampleRate']
-MAXIMUMVOL = 32767
-CHUNK_SIZE = 1024
+MAXIMUMVOL = vox_common.MAX_VOLUME
+CHUNK_SIZE = vox_common.SAMPLE_CHUNK_SIZE
 FORMAT = pyaudio.paInt16
 
 COMPRESS_RECORDING = config['DEFAULT']['ChunkSize'] == 'yes'
