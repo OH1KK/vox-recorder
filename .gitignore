@@ -1,0 +1,4 @@
+.vscode/*
+preferences.ini
+venv/*
+wheel/*
