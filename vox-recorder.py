@@ -16,7 +16,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
-                                       
+
 """
 from __future__ import print_function
 from sys import byteorder
@@ -28,23 +28,37 @@ import pyaudio
 import wave
 import os
 
-SILENCE_THRESHOLD = 5000
-RECORD_AFTER_SILENCE_SECS = 5
-WAVEFILES_STORAGEPATH = os.path.expanduser("~/vox-records");
+import configparser
 
-RATE = 44100
+
+config = configparser.ConfigParser()
+config['DEFAULT'] = {
+    'SilenceThreshold': 5000,
+    'RecordSilenceCutoff': 5,
+    'SaveLocation': os.path.expanduser("~/vox-records"),
+    'SampleRate': 44100,
+    'Compress': 'yes',
+}
+
+SILENCE_THRESHOLD = config['DEFAULT']['SilenceThreshold']
+RECORD_AFTER_SILENCE_SECS = config['DEFAULT']['RecordSilenceCutoff']
+WAVEFILES_STORAGEPATH = config['DEFAULT']['SaveLocation']
+
+RATE = config['DEFAULT']['SampleRate']
 MAXIMUMVOL = 32767
 CHUNK_SIZE = 1024
 FORMAT = pyaudio.paInt16
 
+COMPRESS_RECORDING = config['DEFAULT']['ChunkSize'] == 'yes'
+
 def show_status(snd_data, record_started, record_started_stamp, wav_filename):
     "Displays volume levels"
-    
+
     if voice_detected(snd_data):
         status = "Voice"
     else:
         status = "Silence"
-    
+
     print ('Volume: %d/%d. %s, threshold %d. ' % (max(snd_data), MAXIMUMVOL, status, SILENCE_THRESHOLD), end='')
     if record_started:
         elapsed = time.time() - record_started_stamp;
@@ -98,7 +112,7 @@ def add_silence(snd_data, seconds):
 
 def wait_for_activity():
     """
-    Listen sound and quit when sound is detected 
+    Listen sound and quit when sound is detected
     """
     p = pyaudio.PyAudio()
     stream = p.open(format=FORMAT, channels=1, rate=RATE,
@@ -121,7 +135,7 @@ def wait_for_activity():
 
         if voice:
             break
-        
+
     stream.stop_stream()
     stream.close()
     p.terminate()
@@ -130,11 +144,11 @@ def wait_for_activity():
 
 def record_audio():
     """
-    Record audio when activity is detected 
+    Record audio when activity is detected
 
-    Normalizes the audio, trims silence from the 
-    start and end, and pads with 0.5 seconds of 
-    blank sound to make sure VLC et al can play 
+    Normalizes the audio, trims silence from the
+    start and end, and pads with 0.5 seconds of
+    blank sound to make sure VLC et al can play
     it without getting chopped off.
     """
     p = pyaudio.PyAudio()
@@ -167,7 +181,7 @@ def record_audio():
             record_started_stamp = last_voice_stamp = time.time();
             datetime = time.strftime("%Y%m%d%H%M%S")
             wav_filename = '%s/voxrecord-%s' % (WAVEFILES_STORAGEPATH,datetime)
-        
+
         if record_started and time.time() > (last_voice_stamp + RECORD_AFTER_SILENCE_SECS):
             break
 
@@ -189,7 +203,7 @@ def voxrecord():
     Listen audio from soudcard. If audio is detected, record it to file. After recording,
     start again to wait for next activity
     """
-            
+
     while 1:
         idle = wait_for_activity()
         sample_width, data, wav_filename = record_audio()
@@ -207,10 +221,10 @@ def voxrecord():
 
 if __name__ == '__main__':
     print("Voxrecorder started. Hit ctrl-c to quit.")
-      
+
     if not os.access(WAVEFILES_STORAGEPATH, os.W_OK):
         print("Wave file save directory %s does not exist or is not writable. Aborting." % WAVEFILES_STORAGEPATH)
     else:
         voxrecord()
-    
+
     print("Good bye.")
