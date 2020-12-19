@@ -10,7 +10,7 @@ import os
 import threading
 
 from tkinter import *
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 import queue
 
@@ -160,45 +160,55 @@ class MainWindow(object):
     value_field.grid(column=1, row=c_row, padx=12, pady=4, sticky=(N,E,S,W))
 
   def _do_save_form_button_click(self):
-    print( "save clicked" )
-    self._monitor_should_stop = True
+    dialog_response = messagebox.showinfo(title="Success",
+    message=f"Your changes have been saved to \n{vox_common.CONFIG_FILE_NAME}.")
+
+    if ( dialog_response ):
+      self._reload_config()
+
     pass
 
   def _do_reset_form_button_click(self):
-    print( "reset clicked" )
-    self._reload_config()
-    pass
+    dialog_response = messagebox.askyesno(title="Reload Config?",
+    message="Any unsaved changes on this form will be lost. Would you like to reset your changes?")
+
+    if ( dialog_response ):
+      self._reload_config()
+
 
   def _do_on_window_closing(self):
-    print("Waiting to close")
+    """Intercept the window destroy event to gracefully stop the application.
+    """
     self._monitor.stop()
     self._monitor.join()
     self._parent.destroy()
 
   def _start_audio_monitor_thread(self):
     self._monitor = AudioMonitor()
-    #self._monitor = threading.Thread(target=self._listen_to_audio_input, args = ())
+    self._monitor.setName("AudioMonitorThread")
     self._monitor.start()
+    # Schedule the polling function to spin up on the main thread.
     self._parent.after(0, self._update_monitor)
 
   def _update_monitor(self):
-    try:
-      value = self._monitor.get_value()
+    value = self._monitor.get_value()
 
-      self._input_level_indicator['value'] = value
+    self._input_level_indicator['value'] = value
 
-      if value > self._c_silence_threshold.get():
-        self._input_tripped_indicator.config(background="green")
-      else:
-        self._input_tripped_indicator.config(background="firebrick1")
-    except queue.Empty:
-      pass
+    if value > self._c_silence_threshold.get():
+      self._input_tripped_indicator.config(background="green")
+    else:
+      self._input_tripped_indicator.config(background="firebrick1")
 
+    # Schedule this function to run again.
     self._parent.after(50, self._update_monitor)
 
 
 
 class AudioMonitor(threading.Thread):
+  """This class represents an audio device being opened and monitored in the background.
+  It provides an interface to safely poll the device for the input level.
+  """
 
   def __init__(self):
     super().__init__()
@@ -206,11 +216,11 @@ class AudioMonitor(threading.Thread):
     self.__value = 0
     self.__lock = threading.Lock()
 
-
-  def get_lock(self):
-    return self.__lock
-
   def get_value(self):
+    """Return the latest value published by the audio monitor thread in a thread-safe manner.
+    :return: The max level captured in the latest audio sample.
+    :rtype: int
+    """
     self.__lock.acquire()
     val = self.__value
     self.__lock.release()
@@ -229,25 +239,22 @@ class AudioMonitor(threading.Thread):
     stream = p.open(format=pyaudio.paInt16, channels=1, rate=44100,
         input=True, output=True,
         frames_per_buffer=CHUNK_SIZE)
-    print("Stream opened")
 
-    while True:
+    while not self._stop_requested:
       snd_data = array('h', stream.read(CHUNK_SIZE))
       if sys.byteorder == 'big':
         snd_data.byteswap()
-      time.sleep(.03)
 
-      if self._stop_requested:
-        break
       self.__set_value(max(snd_data))
+      time.sleep(.03)
 
     stream.stop_stream()
     stream.close()
     p.terminate()
-    print("Stream terminated")
 
   def stop(self):
     """Politely asks the running thread to terminate.
+    Call this method before calling .join() on the thread
     """
     self._stop_requested = True
 
