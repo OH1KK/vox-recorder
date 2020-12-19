@@ -33,7 +33,7 @@ Your operating system or other applications may be able to do this. pavucontrol 
 
 `./vox-configurator.py`
 
-Launches the gui for editing the cofiguration file.
+Launches the gui for editing the configuration file.
 
 ![Configuration utility screenshot](https://i.imgur.com/PgzPp6b.png)
 
