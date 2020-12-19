@@ -20,7 +20,7 @@ I am exploring the possibility of being able to select an input device. This is 
 
 ## Usage
 
-./vox-recorder.py
+`./vox-recorder.py`
 
 Audio recordings will be saved to `~/vox-records` by default. This option can be configured in `preferences.ini`. Files are saved as uncompressed WAV at CD quality (44.1 kHz). Output file names are timestamped e.g.
 ```
@@ -29,6 +29,13 @@ Audio recordings will be saved to `~/vox-records` by default. This option can be
 
 Currently it isn't possible to select a recording device other than the system default.
 Your operating system or other applications may be able to do this. pavucontrol is provided as an option for gnu/linux systems
+
+
+`./vox-configurator.py`
+
+Launches the gui for editing the cofiguration file.
+
+![Configuration utility screenshot](https://i.imgur.com/PgzPp6b.png)
 
 ## Licence
 
