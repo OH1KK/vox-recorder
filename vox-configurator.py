@@ -14,33 +14,20 @@ from tkinter import ttk
 
 import queue
 
-import configparser
+import vox_common
+
+
 
 CONFIG_FILE_NAME = os.path.join(os.path.dirname(__file__), 'preferences.ini')
 LAYOUT_PADDING = "3 3 12 12"
 
 #TODO: Remove max volume option. It's just max 16 bit integer.
 
-MAX_VOLUME = 32767
-SAMPLE_CHUNK_SIZE = 1024
+MAX_VOLUME = vox_common.MAX_VOLUME
+SAMPLE_CHUNK_SIZE = vox_common.SAMPLE_CHUNK_SIZE
 
 def init_config():
-  # TODO: This should be shared between the app and config
-  config = configparser.ConfigParser()
-  config['DEFAULT'] = {
-      'SilenceThreshold': 5000,
-      'RecordSilenceCutoff': 5,
-      'SaveLocation': os.path.join(os.path.expanduser("~"), 'vox-recordings'),
-      'SampleRate': 44100,
-      'Compress': 'yes',
-  }
-
-  if os.path.isfile(CONFIG_FILE_NAME):
-    config.read(CONFIG_FILE_NAME)
-  else:
-    with open('preferences.ini', 'w') as config_file:
-      config.write(config_file)
-  return config
+  return vox_common.init_config()
 
 
 class Counter:
@@ -78,8 +65,6 @@ class MainWindow(object):
     self._parent.rowconfigure(0, weight=1)
     self._parent.wm_minsize(529, 437)
     self._parent.bind
-
-    self._monitor_queue = queue.LifoQueue()
 
     self._pref_form_row_counter = Counter()
 
@@ -191,16 +176,15 @@ class MainWindow(object):
     self._parent.destroy()
 
   def _start_audio_monitor_thread(self):
-    self._monitor = AudioMonitor(self._monitor_queue)
-    self._parent.after(100, self._update_monitor)
+    self._monitor = AudioMonitor()
     #self._monitor = threading.Thread(target=self._listen_to_audio_input, args = ())
     self._monitor.start()
+    self._parent.after(0, self._update_monitor)
 
   def _update_monitor(self):
     try:
-      value = self._monitor_queue.get(0)
-      with self._monitor_queue.mutex:
-        self._monitor_queue.queue.clear()
+      value = self._monitor.get_value()
+
       self._input_level_indicator['value'] = value
 
       if value > self._c_silence_threshold.get():
@@ -216,15 +200,31 @@ class MainWindow(object):
 
 class AudioMonitor(threading.Thread):
 
-  def __init__(self, callback):
+  def __init__(self):
     super().__init__()
     self._stop_requested = False
-    self._callback = callback
+    self.__value = 0
+    self.__lock = threading.Lock()
+
+
+  def get_lock(self):
+    return self.__lock
+
+  def get_value(self):
+    self.__lock.acquire()
+    val = self.__value
+    self.__lock.release()
+    return val
+
+  def __set_value(self, value):
+    self.__lock.acquire()
+    self.__value = value
+    self.__lock.release()
 
   def run(self):
     """Called on another thread to monitor the audio of the selected input device.
     """
-    CHUNK_SIZE = 1024
+    CHUNK_SIZE = vox_common.SAMPLE_CHUNK_SIZE
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16, channels=1, rate=44100,
         input=True, output=True,
@@ -235,12 +235,11 @@ class AudioMonitor(threading.Thread):
       snd_data = array('h', stream.read(CHUNK_SIZE))
       if sys.byteorder == 'big':
         snd_data.byteswap()
-      #print(f"Min: {min(snd_data)}, Max: {max(snd_data)} ")
       time.sleep(.03)
 
       if self._stop_requested:
         break
-      self._callback.put(max(snd_data))
+      self.__set_value(max(snd_data))
 
     stream.stop_stream()
     stream.close()
