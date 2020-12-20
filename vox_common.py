@@ -6,8 +6,15 @@ MAX_VOLUME = 32767
 SAMPLE_CHUNK_SIZE = 1024
 
 
+def bool_to_str(boolval):
+  return 'yes' if boolval else 'no'
+
+
 def init_config():
-  # TODO: This should be shared between the app and config
+  """Loads the default configuration and writes it to a file, or if a config
+  file is already present, loads the parameters from it.
+  """
+
   config = configparser.ConfigParser()
   config['DEFAULT'] = {
       'SilenceThreshold': 5000,
@@ -22,6 +29,6 @@ def init_config():
     config.read(CONFIG_FILE_NAME)
   else:
     # Write a new config file with default values.
-    with open('preferences.ini', 'w') as config_file:
+    with open(CONFIG_FILE_NAME, 'w') as config_file:
       config.write(config_file)
   return config

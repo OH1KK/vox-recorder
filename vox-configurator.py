@@ -12,8 +12,6 @@ import threading
 from tkinter import *
 from tkinter import ttk, messagebox
 
-import queue
-
 import vox_common
 
 
@@ -44,6 +42,41 @@ class Counter:
     self.__i += 1
     return self.__i;
 
+class AudioProfileModel(object):
+
+  __data = [
+  {"id":0, "name": "DVD", "depth": 16, "sample": 48000},
+  {"id":1, "name": "CD", "depth": 16, "sample": 44100},
+  {"id":2, "name": "FM Radio", "depth": 16, "sample": 32000},
+  {"id":3, "name": "AM Radio", "depth": 16, "sample": 22050},
+  {"id":4, "name": "Telephone", "depth": 16, "sample": 16000},
+  {"id":5, "name": "Intercom", "depth": 16, "sample": 8000},
+]
+
+  def get(index):
+    #return list( map( lambda x: x['sample'], AudioProfileModel.__data ) )
+    if index < 0 or index >= len(AudioProfileModel.__data):
+      raise IndexError("Index out of range")
+    return AudioProfileModel.__data[index]
+
+  def get_index_by_sample_rate(sample):
+    for i in range(0, AudioProfileModel.count() ):
+      if AudioProfileModel.__data[i]["sample"] == sample:
+        return i
+    return -1
+
+  def get_display_list():
+    display_list = []
+    for preset in AudioProfileModel.__data:
+      display_list.append(
+        f"{preset['name']} quality ({preset['depth']}bit at {round(preset['sample'] / 1000, 2) }kHz)"
+      )
+    return display_list
+
+  def count():
+    return len(AudioProfileModel.__data)
+
+
 
 class MainWindow(object):
   """Represents the main window of a configuration dialog. This dialog is used
@@ -64,7 +97,7 @@ class MainWindow(object):
     self._parent.columnconfigure(0, weight=1)
     self._parent.rowconfigure(0, weight=1)
     self._parent.wm_minsize(529, 437)
-    self._parent.bind
+    #self._parent.bind
 
     self._pref_form_row_counter = Counter()
 
@@ -73,6 +106,8 @@ class MainWindow(object):
     self._c_save_location = StringVar()
     self._c_sample_rate = IntVar()
     self._c_compress = BooleanVar()
+
+    self._sample_rate_combobox = None
 
     self._reload_config()
 
@@ -96,9 +131,29 @@ class MainWindow(object):
 
     self.add_form_row("Record Silence Cutoff", self._c_silence_cutoff )
     self.add_form_row("Save Location", self._c_save_location )
-    self.add_form_row("Sample Rate", self._c_sample_rate )
-    self.add_form_row("Compress Recordings", self._c_compress, dtype="bool" )
 
+
+
+    #region Sample rate combobox
+    row = self._pref_form_row_counter.next()
+    ttk.Label(self._preference_frame, text="Sample Rate").grid(column=0, row=row, sticky=(N, E, S), padx=8 )
+
+    selected_index = AudioProfileModel.get_index_by_sample_rate( self._c_sample_rate.get() )
+    self._sample_rate_combobox = ttk.Combobox(self._preference_frame, values=AudioProfileModel.get_display_list(), state="readonly")
+    self._sample_rate_combobox.grid(column=1, row=row, padx=12, pady=4, sticky=(N, E, W, S))
+
+    self._sample_rate_combobox.current(selected_index)
+
+    self._sample_rate_combobox.bind("<<ComboboxSelected>>", self._do_on_audio_profile_changed )
+
+    #self.add_form_row("Sample Rate", self._c_sample_rate )
+    #endregion
+
+    #region Compress Recording.
+    self.add_form_row("Compress Recordings", self._c_compress, dtype="bool" )
+    #endregion
+
+    #region Audio monitor
     ttk.Label(self._preference_frame, text="Audio Level").grid(column=0, row=self._pref_form_row_counter.next(), sticky=(N, W, S) )
     self._input_level_indicator = ttk.Progressbar(self._preference_frame, value=50, maximum=MAX_VOLUME, orient=HORIZONTAL, length=200, mode='determinate')
     self._input_level_indicator.grid(column=0, row=self._pref_form_row_counter.next(), columnspan=2, sticky=(N,E,W,S))
@@ -107,11 +162,16 @@ class MainWindow(object):
     ttk.Label(self._preference_frame, text="Recording Tripped").grid(column=0, row=row, sticky=(N, W, S) )
     self._input_tripped_indicator = ttk.Label(self._preference_frame, padding="4 8 4 4" )
     self._input_tripped_indicator.grid(column=1, row=row, sticky=(N,W,S) )
+    #endregion
 
+    #region dialog buttons
 
     self._dialog_button_frame.grid(column=0, row=1, sticky=( N, E, S) )
     ttk.Button(self._dialog_button_frame, text="Reset", command=self._do_reset_form_button_click).grid(column=0, row=0, sticky=(N, E, S) )
     ttk.Button(self._dialog_button_frame, text="Save", command=self._do_save_form_button_click).grid(column=1, row=0, sticky=(N, E, S) )
+
+    #endregion
+
     #endregion
     self._start_audio_monitor_thread()
 
@@ -126,16 +186,20 @@ class MainWindow(object):
     self._c_sample_rate.set(self._parse_config.getint('DEFAULT', 'samplerate'))
     self._c_compress.set(self._parse_config.getboolean('DEFAULT', 'compress'))
 
+    if self._sample_rate_combobox is not None:
+      selected_index = AudioProfileModel.get_index_by_sample_rate( self._c_sample_rate.get() )
+      self._sample_rate_combobox.current(selected_index)
+
 
   def _save_config(self):
 
-    self._parse_config.set('DEFAULT', 'silencethreshold', self._c_silence_threshold.get())
-    self._parse_config.set('DEFAULT', 'recordsilencecutoff', self._c_silence_cutoff.get())
-    self._parse_config.set('DEFAULT', 'savelocation', self._c_save_location.get())
-    self._parse_config.set('DEFAULT', 'samplerate', self._c_sample_rate.get())
-    self._parse_config.set('DEFAULT', 'compress', self._c_compress.get())
+    self._parse_config['DEFAULT']['silencethreshold'] = str(self._c_silence_threshold.get())
+    self._parse_config['DEFAULT']['recordsilencecutoff'] =  str(self._c_silence_cutoff.get())
+    self._parse_config['DEFAULT']['savelocation'] =  self._c_save_location.get()
+    self._parse_config['DEFAULT']['samplerate'] = str(self._c_sample_rate.get())
+    self._parse_config['DEFAULT']['compress'] =  vox_common.bool_to_str(self._c_compress.get())
 
-    with open(CONFIG_FILE_NAME, 'w') as config_file:
+    with open(vox_common.CONFIG_FILE_NAME, 'w') as config_file:
       self._parse_config.write(config_file)
 
     pass
@@ -143,6 +207,7 @@ class MainWindow(object):
   def add_form_row(self, label, binding, dtype='text'):
     """Helper function to add a config parameter to the form. The form will be
     laid out with a text label and a text line entry field to input data.
+    TODO: This is less useful than it may have seemed before. I might get rid of this.
     :param label: Label to display for this form row.
     :type label: str
     :param binding: variable to databind to the field.
@@ -159,12 +224,16 @@ class MainWindow(object):
       value_field = ttk.Checkbutton(self._preference_frame, variable=binding)
     value_field.grid(column=1, row=c_row, padx=12, pady=4, sticky=(N,E,S,W))
 
+  def _do_on_audio_profile_changed(self, event):
+    selected_obj = AudioProfileModel.get(event.widget.current())
+    self._c_sample_rate.set(selected_obj['sample'])
+
   def _do_save_form_button_click(self):
+    self._save_config()
+
     dialog_response = messagebox.showinfo(title="Success",
     message=f"Your changes have been saved to \n{vox_common.CONFIG_FILE_NAME}.")
 
-    if ( dialog_response ):
-      self._reload_config()
 
     pass
 
