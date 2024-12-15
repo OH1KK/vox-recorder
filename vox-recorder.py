@@ -39,8 +39,6 @@ MAXIMUMVOL = 32767
 CHUNK_SIZE = 1024
 FORMAT = pyaudio.paInt16
 
-import time
-
 def show_status(snd_data, record_started, record_started_stamp, wav_filename):
     """Displays volume levels with a VU-meter bar, threshold marker, and indicator for audio presence or recording"""
     voice = voice_detected(snd_data)
