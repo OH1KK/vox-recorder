@@ -2,6 +2,8 @@
 
 **Vox-Recorder** is a voice-activated audio recorder designed primarily for use with scanner radios. It automatically starts recording when the audio level exceeds a predefined threshold and stops recording after 5 seconds of silence.
 
+![screenshot](https://oh1kk.toimii.fi/voxrecorder/voxrecorder.png?2).
+
 ## Dependencies
 
 - **Python 3**
