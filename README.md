@@ -37,7 +37,8 @@ voxrecord-20231005143000-20231005143005.wav
 
 ## Configuration
 
-Select Input Device: Use your preferred sound mixer application to choose the correct recording device. We recommend pavucontrol for Linux users. Adjust Recording Volume: Ensure the volume is set appropriately to capture the desired audio levels.
+- Select Input Device: Use your preferred sound mixer application to choose the correct recording device. We recommend pavucontrol for Linux users.
+- Adjust Recording Volume: Ensure the volume is set appropriately to capture the desired audio levels.
 
 ## Features
 
