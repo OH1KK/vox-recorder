@@ -76,7 +76,7 @@ class suppress_stdout_stderr(object):
         self.errnull_file.close()
 
 def signal_handler(signum, frame):
-    print("\nProgram interrupted by user. Exiting cleanly.")
+    print("\nProgram interrupted by user. Exiting...")
     sys.exit(0)
 
 def get_metadata():
