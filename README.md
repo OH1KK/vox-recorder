@@ -2,12 +2,10 @@
 
 **Vox-Recorder** is a voice-activated audio recorder designed primarily for use with scanner radios. It automatically starts recording when the audio level exceeds a predefined threshold and stops recording after 5 seconds of silence.
 
-![screenshot](https://oh1kk.toimii.fi/voxrecorder/voxrecorder.png?2)
-
 ## Dependencies
 
 - **Python 3**
-- **PyAudio** (install with `pip3 install pyaudio`)
+- **PyAudio** (install with `sudo apt install python3-pyaudio`)
 
 ## Installation
 
@@ -28,11 +26,15 @@ python3 ./vox-recorder.py
 ## Output
 
 - Audio Recordings: Saved to ~/vox-records/
-- File Format: WAV
-- File Naming: Files are named with timestamps indicating the start and end of the recording in the format voxrecord-YYYYMMDDHHMMSS-YYYYMMDDHHMMSS.wav. For example:
+- Audio file format: WAV
+- Metadata file format: json
+- File Naming: Files are named with timestamps indicating the start time of recording following unique id
+
+For example:
 
 ```
-voxrecord-20231005143000-20231005143005.wav
+voxrecord-20241215175916-ad63d362.wav
+voxrecord-20241215175916-ad63d362.json
 ```
 
 ## Configuration
@@ -43,6 +45,7 @@ voxrecord-20231005143000-20231005143005.wav
 ## Features
 
 - Automatic Start/Stop: Recording begins when audio surpasses the silence threshold and ends after 5 seconds of silence.
+- Save metadata file that includes recording start and end times.
 - Real-time Feedback: Includes a VU-meter display for monitoring audio levels in real-time.
 
 ## License
