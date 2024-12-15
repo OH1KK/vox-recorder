@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software Foundation,
 Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """
 
-from __future__ import print_function
+
 from sys import byteorder
 from array import array
 from struct import pack
@@ -26,9 +26,10 @@ import time
 import pyaudio
 import wave
 import os
+import sys
 
 # Version of the script
-__version__ = "2024.12.15.02"
+__version__ = "2024.12.15.03"
 
 # Constants
 SILENCE_THRESHOLD = 2000
@@ -38,6 +39,40 @@ RATE = 44100
 MAXIMUMVOL = 32767
 CHUNK_SIZE = 1024
 FORMAT = pyaudio.paInt16
+
+class suppress_stdout_stderr(object):
+    def __enter__(self):
+        self.outnull_file = open(os.devnull, 'w')
+        self.errnull_file = open(os.devnull, 'w')
+
+        self.old_stdout_fileno_undup    = sys.stdout.fileno()
+        self.old_stderr_fileno_undup    = sys.stderr.fileno()
+
+        self.old_stdout_fileno = os.dup(sys.stdout.fileno())
+        self.old_stderr_fileno = os.dup(sys.stderr.fileno())
+
+        self.old_stdout = sys.stdout
+        self.old_stderr = sys.stderr
+
+        os.dup2(self.outnull_file.fileno(), self.old_stdout_fileno_undup)
+        os.dup2(self.errnull_file.fileno(), self.old_stderr_fileno_undup)
+
+        sys.stdout = self.outnull_file        
+        sys.stderr = self.errnull_file
+        return self
+
+    def __exit__(self, *_):        
+        sys.stdout = self.old_stdout
+        sys.stderr = self.old_stderr
+
+        os.dup2(self.old_stdout_fileno, self.old_stdout_fileno_undup)
+        os.dup2(self.old_stderr_fileno, self.old_stderr_fileno_undup)
+
+        os.close(self.old_stdout_fileno)
+        os.close(self.old_stderr_fileno)
+
+        self.outnull_file.close()
+        self.errnull_file.close()
 
 def show_status(snd_data, record_started, record_started_stamp, wav_filename):
     """Displays volume levels with a VU-meter bar, threshold marker, and indicator for audio presence or recording"""
@@ -107,9 +142,10 @@ def add_silence(snd_data, seconds):
     return silence + snd_data + silence
 
 def wait_for_activity():
-    """Listen sound and quit when sound is detected"""
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK_SIZE)
+    with suppress_stdout_stderr():
+        """Listen sound and quit when sound is detected"""
+        p = pyaudio.PyAudio()
+        stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK_SIZE)
     
     try:
         while True:
@@ -127,14 +163,15 @@ def wait_for_activity():
     return True
 
 def record_audio():
-    """Record audio when activity is detected"""
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK_SIZE)
-    snd_data = array('h')
-    record_started = False
-    last_voice_stamp = 0
-    record_started_stamp = 0
-    wav_filename = ''
+    with suppress_stdout_stderr():
+        """Record audio when activity is detected"""
+        p = pyaudio.PyAudio()
+        stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK_SIZE)
+        snd_data = array('h')
+        record_started = False
+        last_voice_stamp = 0
+        record_started_stamp = 0
+        wav_filename = ''
 
     try:
         while True:
@@ -142,24 +179,23 @@ def record_audio():
             if byteorder == 'big':
                 chunk.byteswap()
             snd_data.extend(chunk)
-            
+                
             voice = voice_detected(chunk)
             show_status(chunk, record_started, record_started_stamp, wav_filename)
-
+                
             if voice and not record_started:
                 record_started = True
                 record_started_stamp = last_voice_stamp = time.time()
                 wav_filename = os.path.join(WAVEFILES_STORAGEPATH, f'voxrecord-{time.strftime("%Y%m%d%H%M%S")}')
             elif voice and record_started:
                 last_voice_stamp = time.time()
-            
+                
             if record_started and time.time() > last_voice_stamp + RECORD_AFTER_SILENCE_SECS:
                 break
     finally:
         stream.stop_stream()
         stream.close()
         p.terminate()
-
     # Process audio
     snd_data = normalize(snd_data)
     snd_data = trim(snd_data)
