@@ -28,7 +28,7 @@ import wave
 import os
 
 # Version of the script
-__version__ = "2024.12.15"
+__version__ = "2024.12.15.02"
 
 # Constants
 SILENCE_THRESHOLD = 2000
@@ -39,21 +39,32 @@ MAXIMUMVOL = 32767
 CHUNK_SIZE = 1024
 FORMAT = pyaudio.paInt16
 
+import time
+
 def show_status(snd_data, record_started, record_started_stamp, wav_filename):
-    """Displays volume levels with a VU-meter bar, threshold marker, and status"""
+    """Displays volume levels with a VU-meter bar, threshold marker, and indicator for audio presence or recording"""
     voice = voice_detected(snd_data)
     status = "Audio Detected - Recording to file" if record_started else "Waiting for audio to exceed threshold"
     
-    # Calculate VU level
-    vu_level = min(int((max(snd_data) / MAXIMUMVOL) * 30), 30)  # 30 segments for VU bar
+    # Calculate simple VU level for visual feedback
+    vu_level = min(int((max(snd_data) / MAXIMUMVOL) * 30), 30)
     vu_bar = "█" * vu_level + " " * (30 - vu_level)
     
-    # Find where to place the threshold marker
+    # Add a marker for the threshold
     threshold_position = min(int((SILENCE_THRESHOLD / MAXIMUMVOL) * 30), 30)
     vu_bar = vu_bar[:threshold_position] + '|' + vu_bar[threshold_position + 1:]
+    
+    # Audio presence or recording indicator
+    if record_started:
+        # Always show '⏺' when recording
+        indicator = '⏺'
+    else:
+        # Blinking '⏸' for audio presence when not recording
+        cycle = int(time.time() * 2) % 2  # Blink every 0.5 seconds
+        indicator = '⏸' if cycle and any(abs(x) > 0 for x in snd_data) else ' '
 
-    # Print the VU meter with threshold marker and status
-    print(f'\rVU: [{vu_bar}] | {status}', end='')
+    # Print the VU meter with threshold marker, status, and indicator
+    print(f'\rVU: [{vu_bar}] | {indicator} {status}', end='')
     if record_started:
         elapsed = time.time() - record_started_stamp
         print(f' | File: {os.path.basename(wav_filename)} | Time: {elapsed:.1f}s', end='')
