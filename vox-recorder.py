@@ -16,9 +16,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software Foundation,
 Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+new dependency: python3-pydub
+
 """
-
-
 from sys import byteorder
 from array import array
 from struct import pack
@@ -27,9 +28,12 @@ import pyaudio
 import wave
 import os
 import sys
+import signal
+import uuid
+import json
 
 # Version of the script
-__version__ = "2024.12.15.03"
+__version__ = "2024.12.15.05"
 
 # Constants
 SILENCE_THRESHOLD = 2000
@@ -45,8 +49,8 @@ class suppress_stdout_stderr(object):
         self.outnull_file = open(os.devnull, 'w')
         self.errnull_file = open(os.devnull, 'w')
 
-        self.old_stdout_fileno_undup    = sys.stdout.fileno()
-        self.old_stderr_fileno_undup    = sys.stderr.fileno()
+        self.old_stdout_fileno_undup = sys.stdout.fileno()
+        self.old_stderr_fileno_undup = sys.stderr.fileno()
 
         self.old_stdout_fileno = os.dup(sys.stdout.fileno())
         self.old_stderr_fileno = os.dup(sys.stderr.fileno())
@@ -74,6 +78,26 @@ class suppress_stdout_stderr(object):
         self.outnull_file.close()
         self.errnull_file.close()
 
+def signal_handler(signum, frame):
+    print("\nProgram interrupted by user. Exiting cleanly.")
+    sys.exit(0)
+
+def get_metadata():
+    """Retrieve metadata from radio or other source. Here, we simulate getting the frequency."""
+    # In reality, this would be fetching from your radio or another source
+    return {
+        "frequency": 145500000,  # Example frequency, replace with actual method to get from radio
+        "modulation": 'NFM',  # Example modulation, adjust as needed
+        "notes": "Frequency and modulation are incorrect. Radio integration is not implemented."  # User-defined notes
+    }
+
+def write_metadata(metadata, filename):
+    """Write metadata to a JSON file with the same base name as the audio file."""
+    json_filename = f"{filename.rsplit('.', 1)[0]}.json"
+    with open(json_filename, 'w') as json_file:
+        json.dump(metadata, json_file, indent=4)
+    print(f"Metadata saved to: {json_filename}")
+
 def show_status(snd_data, record_started, record_started_stamp, wav_filename):
     """Displays volume levels with a VU-meter bar, threshold marker, and indicator for audio presence or recording"""
     voice = voice_detected(snd_data)
@@ -89,10 +113,8 @@ def show_status(snd_data, record_started, record_started_stamp, wav_filename):
     
     # Audio presence or recording indicator
     if record_started:
-        # Always show '⏺' when recording
         indicator = '⏺'
     else:
-        # Blinking '⏸' for audio presence when not recording
         cycle = int(time.time() * 2) % 2  # Blink every 0.5 seconds
         indicator = '⏸' if cycle and any(abs(x) > 0 for x in snd_data) else ' '
 
@@ -113,8 +135,11 @@ def voice_detected(snd_data):
 
 def normalize(snd_data):
     """Average the volume out"""
-    times = float(MAXIMUMVOL) / max(abs(i) for i in snd_data)
-    return array('h', [int(i * times) for i in snd_data])
+    max_amplitude = max(abs(i) for i in snd_data)
+    if max_amplitude == 0:
+        return snd_data  # Prevent division by zero
+    times = float(MAXIMUMVOL) / max_amplitude
+    return array('h', [int(min(MAXIMUMVOL, max(-MAXIMUMVOL, i * times))) for i in snd_data])
 
 def trim(snd_data):
     """Trim the blank spots at the start and end"""
@@ -163,6 +188,7 @@ def wait_for_activity():
     return True
 
 def record_audio():
+    metadata = get_metadata()
     with suppress_stdout_stderr():
         """Record audio when activity is detected"""
         p = pyaudio.PyAudio()
@@ -179,41 +205,63 @@ def record_audio():
             if byteorder == 'big':
                 chunk.byteswap()
             snd_data.extend(chunk)
-                
+
             voice = voice_detected(chunk)
             show_status(chunk, record_started, record_started_stamp, wav_filename)
-                
+
             if voice and not record_started:
                 record_started = True
                 record_started_stamp = last_voice_stamp = time.time()
-                wav_filename = os.path.join(WAVEFILES_STORAGEPATH, f'voxrecord-{time.strftime("%Y%m%d%H%M%S")}')
+                wav_filename = os.path.join(WAVEFILES_STORAGEPATH, f'voxrecord-{time.strftime("%Y%m%d%H%M%S")}-{uuid.uuid4().hex[:8]}')
             elif voice and record_started:
                 last_voice_stamp = time.time()
-                
+
             if record_started and time.time() > last_voice_stamp + RECORD_AFTER_SILENCE_SECS:
                 break
     finally:
         stream.stop_stream()
         stream.close()
         p.terminate()
+
     # Process audio
     snd_data = normalize(snd_data)
     snd_data = trim(snd_data)
     snd_data = add_silence(snd_data, 0.5)
-    return p.get_sample_size(FORMAT), snd_data, f'{wav_filename}-{time.strftime("%Y%m%d%H%M%S")}.wav'
+
+    # Save audio with wave module
+    with wave.open(f"{wav_filename}.wav", 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(pack('<' + ('h' * len(snd_data)), *snd_data))
+
+    # Update metadata with recording times
+    metadata.update({
+        "start_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(record_started_stamp)),
+        "end_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+    })
+    endtime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+    record_time = time.time()-record_started_stamp;
+    print(f'\n{endtime} recording finished. Record duraction {record_time:.1f} seconds.')
+    write_metadata(metadata, wav_filename)
+
+    return p.get_sample_size(FORMAT), snd_data, f"{wav_filename}.wav"
 
 def voxrecord():
     """Listen audio from the sound card. If audio is detected, record it to file. After recording,
     start again to wait for next activity"""
+
+    # Register the signal handler for SIGINT (Ctrl-C)
+    signal.signal(signal.SIGINT, signal_handler)
+
     while True:
-        wait_for_activity()
-        sample_width, data, wav_filename = record_audio()
-        with wave.open(wav_filename, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(sample_width)
-            wf.setframerate(RATE)
-            wf.writeframes(pack('<' + ('h' * len(data)), *data))
-        print(f'\nRecording finished. Saved to: {wav_filename}')
+        if not wait_for_activity():
+            break  
+        try:
+            _, _, wav_filename = record_audio()
+            print(f'Audio saved to: {wav_filename}')
+        except Exception as e:
+            print(f"Error during recording: {e}")
 
 if __name__ == '__main__':
     print(f"Voxrecorder v{__version__} started. Hit ctrl-c to quit.")
@@ -221,6 +269,9 @@ if __name__ == '__main__':
     if not os.access(WAVEFILES_STORAGEPATH, os.W_OK):
         print(f"Wave file save directory {WAVEFILES_STORAGEPATH} does not exist or is not writable. Aborting.")
     else:
-        voxrecord()
-    
+        try:
+            voxrecord()
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")    
     print("Good bye.")
+
