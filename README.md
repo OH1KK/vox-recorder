@@ -6,21 +6,29 @@
 
 - **Python 3**
 - **PyAudio** (install with `sudo apt install python3-pyaudio`)
+- **tk** (install with `sudo apt install python3-tk`) needed only for GUI version
 
 ## Installation
 
 Clone the Repository
 
+console version
 ```bash
 apt install git
 git clone https://github.com/OH1KK/vox-recorder.git
 ``` 
+
 ## Usage
 
 To run the recorder:
 ```
 cd vox-recorder
 python3 ./vox-recorder.py
+```
+or for GUI version 
+```
+cd vox-recorder
+python3 ./voxrecorder-gui.py
 ```
 
 ## Output
