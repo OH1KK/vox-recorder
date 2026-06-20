@@ -56,6 +56,11 @@ voxrecord-20241215175916-ad63d362.json
 - Save metadata file that includes recording start and end times.
 - Real-time Feedback: Includes a VU-meter display for monitoring audio levels in real-time.
 
+## For better gui experience
+
+Look my newer project Squelchbreak - https://github.com/OH1KK/squelchbreak
+
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
